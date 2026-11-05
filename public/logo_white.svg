@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <circle cx="50" cy="50" r="46" stroke="#DCB0FF" stroke-width="4" stroke-opacity="0.8"/>
+  <circle cx="50" cy="50" r="32" stroke="#FFFFFF" stroke-width="2" stroke-opacity="0.4" stroke-dasharray="4 6"/>
+  <text x="50" y="58" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" font-weight="800" font-size="28" fill="#FFFFFF" letter-spacing="-1">356</text>
+  <circle cx="50" cy="18" r="4" fill="#DCB0FF"/>
+  <circle cx="82" cy="50" r="3" fill="#00E5FF"/>
+  <circle cx="50" cy="82" r="3" fill="#10B981"/>
+</svg>
