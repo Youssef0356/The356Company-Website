@@ -162,23 +162,33 @@ export const StudioCore: FC = () => {
     }
   });
 
-  // Calculate Gaussian Splat Gathering & Dispersion Progress
-  // p < 0.15: Laptop hidden / dispersed cloud (progress = 1.0)
-  // p in [0.15, 0.45]: Camera sweeps to laptop -> Splats gather together (1.0 -> 0.0)
-  // p in [0.45, 0.65]: Laptop is fully assembled, solid, and pristine (progress = 0.0)
-  // p in [0.65, 0.85]: Splats gently disperse outward again (0.0 -> 1.0)
+  // Calculate Gaussian Splat Gathering & Dispersion Lifecycle:
+  // p < 0.18: Laptop is NOT SHOWN AT ALL (opacity = 0, visible = false)
+  // p in [0.18, 0.42]: Camera sweeps left -> Splats gather together into laptop
+  // p in [0.42, 0.65]: Laptop is fully assembled, sharp and solid
+  // p in [0.65, 0.85]: Splats disperse outward and fade away
+  // p > 0.85: Completely hidden
   const p = Math.min(1.0, Math.max(0.0, scrollProgress));
   let splatProgress = 1.0;
-  if (p < 0.15) {
+  let splatOpacity = 0.0;
+
+  if (p < 0.18) {
     splatProgress = 1.0;
-  } else if (p <= 0.45) {
-    splatProgress = 1.0 - (p - 0.15) / 0.30;
+    splatOpacity = 0.0;
+  } else if (p <= 0.42) {
+    const t = (p - 0.18) / 0.24;
+    splatProgress = 1.0 - t;
+    splatOpacity = Math.min(1.0, t * 1.5);
   } else if (p <= 0.65) {
     splatProgress = 0.0;
+    splatOpacity = 1.0;
   } else if (p <= 0.85) {
-    splatProgress = (p - 0.65) / 0.20;
+    const t = (p - 0.65) / 0.20;
+    splatProgress = t;
+    splatOpacity = Math.max(0.0, 1.0 - t * 1.2);
   } else {
     splatProgress = 1.0;
+    splatOpacity = 0.0;
   }
 
   return (
@@ -189,7 +199,8 @@ export const StudioCore: FC = () => {
       <GaussianSplatObject
         splatUrl="/models/laptop_gaussian.ply"
         progress={splatProgress}
-        scatterRadius={3.6}
+        opacity={splatOpacity}
+        scatterRadius={1.4}
         position={[0, 0, 0]}
         scale={1.0}
       />

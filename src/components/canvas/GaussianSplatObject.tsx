@@ -6,6 +6,7 @@ import { loadGaussianSplatPly, SplatCloudData } from '@/utils/splatLoader';
 interface GaussianSplatObjectProps {
   splatUrl: string;
   progress: number; // 0.0 = solid assembled, 1.0 = fully dispersed cloud
+  opacity?: number;  // Master opacity 0.0 to 1.0
   scatterRadius?: number;
   position?: [number, number, number];
   rotation?: [number, number, number];
@@ -15,7 +16,8 @@ interface GaussianSplatObjectProps {
 export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
   splatUrl,
   progress,
-  scatterRadius = 3.5,
+  opacity = 1.0,
+  scatterRadius = 1.4,
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   scale = 1.0,
@@ -23,6 +25,7 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
   const { size } = useThree();
   const [splatData, setSplatData] = useState<SplatCloudData | null>(null);
 
+  const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
 
   // Load the 3D Gaussian Splat PLY
@@ -46,7 +49,6 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
   // Base Quad Geometry for Instanced Gaussian Splats
   const baseGeometry = useMemo(() => {
     const geo = new THREE.BufferGeometry();
-    // 2D Quad in [-1, 1] bounds
     const vertices = new Float32Array([
       -1, -1, 0,
        1, -1, 0,
@@ -104,6 +106,7 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
       blending: THREE.NormalBlending,
       uniforms: {
         uProgress: { value: 0.0 },
+        uOpacity: { value: 0.0 },
         uScatterRadius: { value: scatterRadius },
         uTime: { value: 0.0 },
         uFocal: { value: new THREE.Vector2(1000, 1000) },
@@ -120,6 +123,7 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
         attribute float aPhase;
 
         uniform float uProgress;
+        uniform float uOpacity;
         uniform float uScatterRadius;
         uniform float uTime;
         uniform vec2 uFocal;
@@ -127,7 +131,6 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
 
         varying vec4 vColor;
         varying vec2 vQuadCoord;
-        varying mat2 vInvCov2D;
 
         // Quaternion to rotation matrix
         mat3 quatToMat3(vec4 q) {
@@ -151,11 +154,11 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
           // Displaced 3D Position
           vec3 dynamicPos = aPosition + aScatterDir * (easedProgress * uScatterRadius);
           
-          // Zero-gravity harmonic turbulence during dispersion
+          // Subtle zero-gravity breathing during dispersion
           dynamicPos += vec3(
-            sin(uTime * 1.4 + dynamicPos.y * 2.5) * 0.06 * easedProgress,
-            cos(uTime * 1.1 + dynamicPos.x * 2.5) * 0.06 * easedProgress,
-            sin(uTime * 1.6 + dynamicPos.z * 2.5) * 0.06 * easedProgress
+            sin(uTime * 1.4 + dynamicPos.y * 2.5) * 0.04 * easedProgress,
+            cos(uTime * 1.1 + dynamicPos.x * 2.5) * 0.04 * easedProgress,
+            sin(uTime * 1.6 + dynamicPos.z * 2.5) * 0.04 * easedProgress
           );
 
           // World and View transform
@@ -164,8 +167,7 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
 
           // Compute 3D Covariance: Sigma = R * S * S^T * R^T
           mat3 R = quatToMat3(aQuat);
-          // Scale swells slightly when floating dispersed for visual softness
-          vec3 s = aScale * (1.0 + easedProgress * 0.85);
+          vec3 s = aScale * (1.0 + easedProgress * 0.4);
           mat3 S = mat3(
             s.x, 0.0, 0.0,
             0.0, s.y, 0.0,
@@ -191,8 +193,8 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
 
           mat3 cov2D_3 = J * SigmaV * transpose(J);
           mat2 cov2D = mat2(
-            cov2D_3[0][0] + 0.3, cov2D_3[0][1],
-            cov2D_3[1][0], cov2D_3[1][1] + 0.3
+            cov2D_3[0][0] + 0.2, cov2D_3[0][1],
+            cov2D_3[1][0], cov2D_3[1][1] + 0.2
           );
 
           // Eigenvalues of 2D Covariance
@@ -202,9 +204,9 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
 
           float trace = a + c;
           float det = a * c - b * b;
-          float term = sqrt(max(0.01, (trace * trace * 0.25) - det));
+          float term = sqrt(max(0.001, (trace * trace * 0.25) - det));
           float lambda1 = trace * 0.5 + term;
-          float lambda2 = max(0.01, trace * 0.5 - term);
+          float lambda2 = max(0.001, trace * 0.5 - term);
 
           // Eigenvector for orientation
           vec2 axis1 = vec2(b, lambda1 - a);
@@ -212,17 +214,13 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
           axis1 = normalize(axis1);
           vec2 axis2 = vec2(-axis1.y, axis1.x);
 
-          // Radii along ellipse principal axes (3-sigma extent)
-          float r1 = min(64.0, 3.0 * sqrt(max(0.1, lambda1)));
-          float r2 = min(64.0, 3.0 * sqrt(max(0.1, lambda2)));
-
-          // Inverse 2D Covariance for Gaussian evaluation in fragment shader
-          float invDet = 1.0 / max(0.0001, det);
-          vInvCov2D = mat2(c * invDet, -b * invDet, -b * invDet, a * invDet);
+          // Precise radii along ellipse principal axes (clamped to prevent bloating)
+          float r1 = clamp(3.0 * sqrt(max(0.01, lambda1)), 1.0, 10.0);
+          float r2 = clamp(3.0 * sqrt(max(0.01, lambda2)), 1.0, 10.0);
 
           // Screen offset
           vec2 offset = position.x * axis1 * r1 + position.y * axis2 * r2;
-          vQuadCoord = position.xy * 3.0; // [-3, 3] domain
+          vQuadCoord = position.xy * 2.5;
 
           vec4 clipPos = projectionMatrix * viewPos;
           clipPos.xy += (offset / uViewport) * 2.0 * clipPos.w;
@@ -234,26 +232,32 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
       fragmentShader: `
         precision highp float;
 
+        uniform float uOpacity;
+
         varying vec4 vColor;
         varying vec2 vQuadCoord;
-        varying mat2 vInvCov2D;
 
         void main() {
-          // Exact 2D Gaussian Ellipsoid Evaluation: G(x, y) = exp(-0.5 * x^T * Sigma^-1 * x)
-          float power = -0.5 * dot(vQuadCoord, vQuadCoord);
-
-          if (power < -4.5) {
+          // If master opacity is 0, completely drop fragment
+          if (uOpacity < 0.005) {
             discard;
           }
 
-          float alpha = exp(power) * vColor.a;
+          // Exact 2D Gaussian Ellipsoid Evaluation: G(x, y) = exp(-0.5 * (x^2 + y^2))
+          float power = -0.5 * dot(vQuadCoord, vQuadCoord);
+
+          if (power < -4.0) {
+            discard;
+          }
+
+          float alpha = exp(power) * vColor.a * uOpacity;
 
           if (alpha < 0.02) {
             discard;
           }
 
-          // Output pure Gaussian Splat color with soft volumetric falloff
-          gl_FragColor = vec4(vColor.rgb, alpha);
+          // Output pure Gaussian Splat with anti-aliased falloff
+          gl_FragColor = vec4(vColor.rgb * alpha, alpha);
         }
       `,
     });
@@ -262,10 +266,14 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
   useFrame((state) => {
     if (!material) return;
 
+    // Hard visibility cull: if opacity is 0, completely hide mesh from render tree
+    if (groupRef.current) {
+      groupRef.current.visible = opacity > 0.005;
+    }
+
     const time = state.clock.getElapsedTime();
     const camera = state.camera as THREE.PerspectiveCamera;
 
-    // Calculate vertical and horizontal focal lengths in pixels
     const fovRad = (camera.fov * Math.PI) / 180.0;
     const fy = (size.height * 0.5) / Math.tan(fovRad * 0.5);
     const fx = fy * (camera.aspect || 1.0);
@@ -274,18 +282,23 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
     material.uniforms.uViewport.value.set(size.width, size.height);
     material.uniforms.uTime.value = time;
 
-    // Smoothly update dispersion progress uniform
+    // Smoothly update uniforms
     material.uniforms.uProgress.value = THREE.MathUtils.lerp(
       material.uniforms.uProgress.value,
       progress,
-      0.15
+      0.2
+    );
+    material.uniforms.uOpacity.value = THREE.MathUtils.lerp(
+      material.uniforms.uOpacity.value,
+      opacity,
+      0.25
     );
   });
 
   if (!instancedGeometry) return null;
 
   return (
-    <group position={position} rotation={rotation} scale={scale}>
+    <group ref={groupRef} position={position} rotation={rotation} scale={scale} visible={false}>
       <mesh
         ref={meshRef}
         geometry={instancedGeometry}

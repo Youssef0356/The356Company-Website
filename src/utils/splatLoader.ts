@@ -93,16 +93,14 @@ export async function loadGaussianSplatPly(url: string): Promise<SplatCloudData>
     rotations[i * 4 + 3] = qw;
 
     // 5. Procedural Organic Scatter Trajectory
-    // Direction vector radiating outward from object center with randomized spiral curl
-    const angle = (i / count) * Math.PI * 18.0;
-    const radial = 1.5 + Math.random() * 2.2;
-    const elevation = (Math.random() - 0.5) * 2.5;
+    // Scatter tightly around the laptop, strictly biased to the left (-X) and back (-Z)
+    // so it NEVER crosses over toward the center medallion!
+    const angle = (i / count) * Math.PI * 14.0;
+    const scatterX = -Math.abs(Math.cos(angle)) * (0.6 + Math.random() * 0.8) - 0.2;
+    const scatterY = (Math.random() - 0.5) * 1.2;
+    const scatterZ = Math.sin(angle) * 0.8 + (Math.random() - 0.5) * 0.6;
 
-    tempScatter.set(
-      Math.cos(angle) * radial + (Math.random() - 0.5) * 1.2,
-      elevation,
-      Math.sin(angle) * radial + (Math.random() - 0.5) * 1.2
-    ).normalize();
+    tempScatter.set(scatterX, scatterY, scatterZ).normalize();
 
     scatterDirs[i * 3] = tempScatter.x;
     scatterDirs[i * 3 + 1] = tempScatter.y;
