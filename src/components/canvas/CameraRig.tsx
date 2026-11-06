@@ -7,7 +7,7 @@ export const CameraRig: FC = () => {
   const { camera, pointer } = useThree();
   const scrollProgress = useExperienceStore((s) => s.scrollProgress);
 
-  const targetCamPos = useRef(new THREE.Vector3(0, 0, 7.8));
+  const targetCamPos = useRef(new THREE.Vector3(0, 0, 7.5));
   const targetLookAt = useRef(new THREE.Vector3(0, 0, 0));
   const currentLookAt = useRef(new THREE.Vector3(0, 0, 0));
 
@@ -15,64 +15,90 @@ export const CameraRig: FC = () => {
     const time = state.clock.getElapsedTime();
     const p = Math.min(1.0, Math.max(0.0, scrollProgress));
 
-    // Left Focal Element World Anchor
-    const focalElementPos = new THREE.Vector3(-3.1, 0.1, 0.4);
+    // World Anchors
+    const phoneCenter = new THREE.Vector3(3.2, 0.15, 0.0);   // Phone on Right
+    const pcCenter = new THREE.Vector3(-3.2, 0.15, 0.0);      // PC / Laptop on Left
 
-    // ==========================================
-    // 5-PHASE BERSUS CAMERA CHOREOGRAPHY
-    // ==========================================
-    if (p < 0.35) {
-      // PHASE 0 & 1: Wide Monumental View (Silhouette -> Color Awakening)
-      const t = p / 0.35;
+    // =========================================================================
+    // CAMERA CHOREOGRAPHY: LOGO (Center) -> PHONE (Right) -> PC (Left) -> BLACKOUT
+    // =========================================================================
+    if (p < 0.16) {
+      // 1. CENTER STAGE: Logo Medallion (0.0 to 0.16)
+      const t = p / 0.16;
       const easedT = THREE.MathUtils.smoothstep(t, 0.0, 1.0);
 
       targetCamPos.current.set(
         0,
-        THREE.MathUtils.lerp(0, 0.15, easedT),
-        THREE.MathUtils.lerp(7.8, 6.2, easedT)
+        THREE.MathUtils.lerp(0, 0.05, easedT),
+        THREE.MathUtils.lerp(7.5, 6.4, easedT)
       );
       targetLookAt.current.set(0, 0, 0);
-    } else if (p < 0.60) {
-      // PHASE 2: Cinematic Dolly & Pan toward Left Satellite / Laptop
-      const t = (p - 0.35) / 0.25;
+
+    } else if (p < 0.40) {
+      // 2. ZOOM TO PHONE FIRST (0.16 to 0.40)
+      // Camera dollies right in front of the Phone and centers it
+      const t = (p - 0.16) / 0.24;
       const easedT = THREE.MathUtils.smoothstep(t, 0.0, 1.0);
 
       targetCamPos.current.set(
-        THREE.MathUtils.lerp(0, -2.3, easedT),
-        THREE.MathUtils.lerp(0.15, 0.45, easedT),
-        THREE.MathUtils.lerp(6.2, 3.0, easedT)
+        THREE.MathUtils.lerp(0, phoneCenter.x, easedT),
+        THREE.MathUtils.lerp(0.05, phoneCenter.y, easedT),
+        THREE.MathUtils.lerp(6.4, 2.0, easedT)
       );
 
       targetLookAt.current.set(
-        THREE.MathUtils.lerp(0, focalElementPos.x, easedT),
-        THREE.MathUtils.lerp(0, focalElementPos.y, easedT),
-        THREE.MathUtils.lerp(0, focalElementPos.z, easedT)
+        THREE.MathUtils.lerp(0, phoneCenter.x, easedT),
+        THREE.MathUtils.lerp(0, phoneCenter.y, easedT),
+        THREE.MathUtils.lerp(0, phoneCenter.z, easedT)
       );
-    } else if (p < 0.85) {
-      // PHASE 3: Tight Focus, Animation & High-Frequency Camera Shake on Disassembly
-      const t = (p - 0.60) / 0.25;
-      const shakeIntensity = Math.min(0.05, Math.pow(t, 1.5) * 0.045);
 
-      // High frequency shake noise
-      const shakeX = Math.sin(time * 48) * shakeIntensity + Math.cos(time * 33) * shakeIntensity * 0.5;
-      const shakeY = Math.cos(time * 52) * shakeIntensity + Math.sin(time * 29) * shakeIntensity * 0.5;
+    } else if (p < 0.68) {
+      // 3. SWEEP FROM PHONE OVER TO PC (0.40 to 0.68)
+      // Camera sweeps across the entire studio over to the Laptop on the left
+      const t = (p - 0.40) / 0.28;
+      const easedT = THREE.MathUtils.smoothstep(t, 0.0, 1.0);
+
+      // Arc pull-back in Z during transit
+      const arcZ = Math.sin(easedT * Math.PI) * 1.6;
 
       targetCamPos.current.set(
-        THREE.MathUtils.lerp(-2.3, -2.4, t) + shakeX,
-        THREE.MathUtils.lerp(0.45, 0.35, t) + shakeY,
-        THREE.MathUtils.lerp(3.0, 2.5, t)
+        THREE.MathUtils.lerp(phoneCenter.x, pcCenter.x, easedT),
+        THREE.MathUtils.lerp(phoneCenter.y, pcCenter.y, easedT),
+        THREE.MathUtils.lerp(2.0, 2.3, easedT) + arcZ
       );
 
-      targetLookAt.current.copy(focalElementPos);
+      targetLookAt.current.set(
+        THREE.MathUtils.lerp(phoneCenter.x, pcCenter.x, easedT),
+        THREE.MathUtils.lerp(phoneCenter.y, pcCenter.y, easedT),
+        THREE.MathUtils.lerp(phoneCenter.z, pcCenter.z, easedT)
+      );
+
+    } else if (p < 0.86) {
+      // 4. FOCUS ON PC / LAPTOP (0.68 to 0.86)
+      const t = (p - 0.68) / 0.18;
+      const shakeIntensity = Math.min(0.03, Math.pow(t, 1.5) * 0.025);
+
+      const shakeX = Math.sin(time * 48) * shakeIntensity;
+      const shakeY = Math.cos(time * 52) * shakeIntensity;
+
+      targetCamPos.current.set(
+        pcCenter.x + shakeX,
+        pcCenter.y + shakeY,
+        THREE.MathUtils.lerp(2.3, 1.9, t)
+      );
+
+      targetLookAt.current.copy(pcCenter);
+
     } else {
-      // PHASE 4 & 5: Fly-through & Complete Blackout Intro
-      targetCamPos.current.set(-2.4, 0.35, 2.3);
-      targetLookAt.current.copy(focalElementPos);
+      // 5. BLACKOUT & MANIFESTO (0.86 to 1.00)
+      targetCamPos.current.set(pcCenter.x, pcCenter.y, 1.9);
+      targetLookAt.current.copy(pcCenter);
     }
 
-    // Interactive pointer parallax
-    const parallaxX = pointer.x * (p < 0.35 ? 0.35 : 0.12);
-    const parallaxY = pointer.y * (p < 0.35 ? 0.22 : 0.08);
+    // Pointer Parallax
+    const parallaxWeight = p < 0.16 ? 0.35 : 0.08;
+    const parallaxX = pointer.x * parallaxWeight;
+    const parallaxY = pointer.y * (parallaxWeight * 0.6);
 
     const lerpSpeed = Math.min(1.0, delta * 3.8);
     camera.position.x = THREE.MathUtils.lerp(

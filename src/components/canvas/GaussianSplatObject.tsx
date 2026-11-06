@@ -17,7 +17,7 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
   splatUrl,
   progress,
   opacity = 1.0,
-  scatterRadius = 1.4,
+  scatterRadius = 1.5,
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   scale = 1.0,
@@ -97,13 +97,13 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
     return geo;
   }, [splatData, baseGeometry]);
 
-  // Custom 3D Gaussian Splatting Shader Material
+  // Custom Smooth Gaussian Splatting Shader Material
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
       depthTest: true,
-      blending: THREE.NormalBlending,
+      blending: THREE.AdditiveBlending, // Additive blending prevents gritty dark fringes and creates silky glow
       uniforms: {
         uProgress: { value: 0.0 },
         uOpacity: { value: 0.0 },
@@ -147,27 +147,27 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
         }
 
         void main() {
-          // Staggered ripple dispersion and gathering
+          // Organic staggered wave
           float localProgress = clamp((uProgress - aPhase * 0.35) / 0.65, 0.0, 1.0);
           float easedProgress = smoothstep(0.0, 1.0, localProgress);
 
           // Displaced 3D Position
           vec3 dynamicPos = aPosition + aScatterDir * (easedProgress * uScatterRadius);
           
-          // Subtle zero-gravity breathing during dispersion
+          // Harmonic zero-G micro-float
           dynamicPos += vec3(
-            sin(uTime * 1.4 + dynamicPos.y * 2.5) * 0.04 * easedProgress,
-            cos(uTime * 1.1 + dynamicPos.x * 2.5) * 0.04 * easedProgress,
-            sin(uTime * 1.6 + dynamicPos.z * 2.5) * 0.04 * easedProgress
+            sin(uTime * 1.5 + dynamicPos.y * 3.0) * 0.03 * easedProgress,
+            cos(uTime * 1.2 + dynamicPos.x * 3.0) * 0.03 * easedProgress,
+            sin(uTime * 1.7 + dynamicPos.z * 3.0) * 0.03 * easedProgress
           );
 
           // World and View transform
           vec4 worldPos = modelMatrix * vec4(dynamicPos, 1.0);
           vec4 viewPos = viewMatrix * worldPos;
 
-          // Compute 3D Covariance: Sigma = R * S * S^T * R^T
+          // 3D Gaussian Covariance
           mat3 R = quatToMat3(aQuat);
-          vec3 s = aScale * (1.0 + easedProgress * 0.4);
+          vec3 s = aScale * (1.0 + easedProgress * 0.3);
           mat3 S = mat3(
             s.x, 0.0, 0.0,
             0.0, s.y, 0.0,
@@ -176,11 +176,10 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
           mat3 M = R * S;
           mat3 Sigma3D = M * transpose(M);
 
-          // View-space covariance: Sigma_v = V * Sigma3D * V^T
           mat3 V = mat3(viewMatrix);
           mat3 SigmaV = V * Sigma3D * transpose(V);
 
-          // Project to 2D Screen-space Covariance using Jacobian J
+          // Perspective Jacobian J
           float z = -viewPos.z;
           float fx = uFocal.x;
           float fy = uFocal.y;
@@ -193,11 +192,10 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
 
           mat3 cov2D_3 = J * SigmaV * transpose(J);
           mat2 cov2D = mat2(
-            cov2D_3[0][0] + 0.2, cov2D_3[0][1],
-            cov2D_3[1][0], cov2D_3[1][1] + 0.2
+            cov2D_3[0][0] + 0.15, cov2D_3[0][1],
+            cov2D_3[1][0], cov2D_3[1][1] + 0.15
           );
 
-          // Eigenvalues of 2D Covariance
           float a = cov2D[0][0];
           float b = cov2D[0][1];
           float c = cov2D[1][1];
@@ -208,19 +206,17 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
           float lambda1 = trace * 0.5 + term;
           float lambda2 = max(0.001, trace * 0.5 - term);
 
-          // Eigenvector for orientation
           vec2 axis1 = vec2(b, lambda1 - a);
           if (length(axis1) < 0.0001) axis1 = vec2(1.0, 0.0);
           axis1 = normalize(axis1);
           vec2 axis2 = vec2(-axis1.y, axis1.x);
 
-          // Precise radii along ellipse principal axes (clamped to prevent bloating)
-          float r1 = clamp(3.0 * sqrt(max(0.01, lambda1)), 1.0, 10.0);
-          float r2 = clamp(3.0 * sqrt(max(0.01, lambda2)), 1.0, 10.0);
+          // Tight, soft radius
+          float r1 = clamp(2.5 * sqrt(max(0.01, lambda1)), 1.2, 8.0);
+          float r2 = clamp(2.5 * sqrt(max(0.01, lambda2)), 1.2, 8.0);
 
-          // Screen offset
           vec2 offset = position.x * axis1 * r1 + position.y * axis2 * r2;
-          vQuadCoord = position.xy * 2.5;
+          vQuadCoord = position.xy; // in [-1, 1]
 
           vec4 clipPos = projectionMatrix * viewPos;
           clipPos.xy += (offset / uViewport) * 2.0 * clipPos.w;
@@ -238,26 +234,24 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
         varying vec2 vQuadCoord;
 
         void main() {
-          // If master opacity is 0, completely drop fragment
           if (uOpacity < 0.005) {
             discard;
           }
 
-          // Exact 2D Gaussian Ellipsoid Evaluation: G(x, y) = exp(-0.5 * (x^2 + y^2))
-          float power = -0.5 * dot(vQuadCoord, vQuadCoord);
+          // Smooth exponential Gaussian bell curve
+          float r2 = dot(vQuadCoord, vQuadCoord);
+          float gaussian = exp(-2.8 * r2);
 
-          if (power < -4.0) {
+          if (gaussian < 0.015) {
             discard;
           }
 
-          float alpha = exp(power) * vColor.a * uOpacity;
+          float alpha = gaussian * vColor.a * uOpacity * 0.55;
 
-          if (alpha < 0.02) {
-            discard;
-          }
+          // Silky iridescent cyan/purple luminous tint
+          vec3 glowingColor = mix(vColor.rgb, vec3(0.75, 0.85, 1.0), 0.25);
 
-          // Output pure Gaussian Splat with anti-aliased falloff
-          gl_FragColor = vec4(vColor.rgb * alpha, alpha);
+          gl_FragColor = vec4(glowingColor * alpha, alpha);
         }
       `,
     });
@@ -266,7 +260,6 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
   useFrame((state) => {
     if (!material) return;
 
-    // Hard visibility cull: if opacity is 0, completely hide mesh from render tree
     if (groupRef.current) {
       groupRef.current.visible = opacity > 0.005;
     }
@@ -282,7 +275,6 @@ export const GaussianSplatObject: FC<GaussianSplatObjectProps> = ({
     material.uniforms.uViewport.value.set(size.width, size.height);
     material.uniforms.uTime.value = time;
 
-    // Smoothly update uniforms
     material.uniforms.uProgress.value = THREE.MathUtils.lerp(
       material.uniforms.uProgress.value,
       progress,

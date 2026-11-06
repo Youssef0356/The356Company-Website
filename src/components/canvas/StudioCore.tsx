@@ -14,6 +14,7 @@ export const StudioCore: FC = () => {
   const initialMedallionQuat = useRef<THREE.Quaternion | null>(null);
   const ringsRef = useRef<THREE.Object3D | null>(null);
   const floatingGroupRef = useRef<THREE.Object3D | null>(null);
+  const laptopRef = useRef<THREE.Object3D | null>(null);
   const phoneRef = useRef<THREE.Object3D | null>(null);
 
   // Dynamic light refs for silhouette -> lit awakening
@@ -46,8 +47,7 @@ export const StudioCore: FC = () => {
         child.name.includes('Laptop') ||
         child.name === 'Sketchfab_model.001'
       ) {
-        // Hide original static laptop mesh so authentic Gaussian Splats take its place
-        child.visible = false;
+        laptopRef.current = child;
       } else if (
         child.name.includes('Phone') ||
         child.name === 'Sketchfab_model'
@@ -82,7 +82,7 @@ export const StudioCore: FC = () => {
     const p = Math.min(1.0, Math.max(0.0, scrollProgress));
 
     // ==========================================
-    // 1. CHOREOGRAPHED STUDIO LIGHTING (SILHOUETTE -> LIT AWAKENING)
+    // 1. CHOREOGRAPHED STUDIO LIGHTING
     // ==========================================
     const lightT = Math.min(1.0, Math.max(0.0, (p - 0.03) / 0.28));
     const easedLight = THREE.MathUtils.smoothstep(lightT, 0.0, 1.0);
@@ -154,38 +154,56 @@ export const StudioCore: FC = () => {
     }
 
     // ==========================================
-    // 6. PHONE ROTATION
+    // 6. PHONE SHOWCASE (Zoomed in at p: 0.18 -> 0.40)
     // ==========================================
     if (phoneRef.current) {
-      phoneRef.current.position.y = -0.2 + Math.cos(time * 0.85 + 2.0) * 0.08;
-      phoneRef.current.rotation.y -= delta * 0.1;
+      const idleFloat = Math.cos(time * 0.85 + 2.0) * 0.06;
+      phoneRef.current.position.y = idleFloat;
+
+      if (p >= 0.16 && p <= 0.44) {
+        // Angled to directly face the camera
+        phoneRef.current.rotation.y = Math.sin(time * 0.5) * 0.12 - 0.25;
+        phoneRef.current.rotation.x = Math.sin(time * 0.4) * 0.06;
+      } else {
+        phoneRef.current.rotation.y -= delta * 0.1;
+      }
+    }
+
+    // ==========================================
+    // 7. REAL 3D LAPTOP MESH SEAMLESS HANDOFF
+    // ==========================================
+    if (laptopRef.current) {
+      // Solid real mesh is only visible once gathered (p >= 0.65 to 0.82)
+      laptopRef.current.visible = p >= 0.65 && p <= 0.82;
     }
   });
 
-  // Calculate Gaussian Splat Gathering & Dispersion Lifecycle:
-  // p < 0.18: Laptop is NOT SHOWN AT ALL (opacity = 0, visible = false)
-  // p in [0.18, 0.42]: Camera sweeps left -> Splats gather together into laptop
-  // p in [0.42, 0.65]: Laptop is fully assembled, sharp and solid
-  // p in [0.65, 0.85]: Splats disperse outward and fade away
-  // p > 0.85: Completely hidden
+  // =========================================================================
+  // GAUSSIAN SPLATTING PC LIFECYCLE (Smooth & Fully Contained):
+  // p < 0.38: Laptop is 100% HIDDEN (opacity = 0) while looking at Logo and Phone!
+  // p in [0.38, 0.65]: Camera sweeps from Phone to PC -> Splats gather together smoothly
+  // p in [0.65, 0.78]: Laptop is 100% assembled, sharp and pristine (solid real 3D mesh active)
+  // p in [0.78, 0.86]: Splats disperse outward into space before blackout
+  // p > 0.86: Completely hidden for Manifesto
+  // =========================================================================
   const p = Math.min(1.0, Math.max(0.0, scrollProgress));
   let splatProgress = 1.0;
   let splatOpacity = 0.0;
 
-  if (p < 0.18) {
+  if (p < 0.38) {
     splatProgress = 1.0;
-    splatOpacity = 0.0;
-  } else if (p <= 0.42) {
-    const t = (p - 0.18) / 0.24;
-    splatProgress = 1.0 - t;
-    splatOpacity = Math.min(1.0, t * 1.5);
+    splatOpacity = 0.0; // ZERO splats visible while on Logo or Phone!
   } else if (p <= 0.65) {
-    splatProgress = 0.0;
-    splatOpacity = 1.0;
-  } else if (p <= 0.85) {
-    const t = (p - 0.65) / 0.20;
-    splatProgress = t;
-    splatOpacity = Math.max(0.0, 1.0 - t * 1.2);
+    const t = (p - 0.38) / 0.27;
+    splatProgress = 1.0 - t; // Gathers from 1.0 down to 0.0
+    splatOpacity = Math.min(1.0, t * 1.8); // Fades in smoothly
+  } else if (p <= 0.78) {
+    splatProgress = 0.0; // Solid laptop
+    splatOpacity = 0.4; // Soft ethereal aura around solid mesh
+  } else if (p <= 0.86) {
+    const t = (p - 0.78) / 0.08;
+    splatProgress = t; // Disperses outward
+    splatOpacity = Math.max(0.0, 1.0 - t * 1.5); // Fades out
   } else {
     splatProgress = 1.0;
     splatOpacity = 0.0;
@@ -195,12 +213,12 @@ export const StudioCore: FC = () => {
     <group ref={groupRef} position={[0, 0, 0]} scale={1.05}>
       <primitive object={clonedScene} />
 
-      {/* 3D GAUSSIAN SPLATTING LAPTOP (70,000 True Gaussian Ellipsoids) */}
+      {/* 3D GAUSSIAN SPLATTING LAPTOP (Silky Additive Gaussian Cloud) */}
       <GaussianSplatObject
         splatUrl="/models/laptop_gaussian.ply"
         progress={splatProgress}
         opacity={splatOpacity}
-        scatterRadius={1.4}
+        scatterRadius={1.2}
         position={[0, 0, 0]}
         scale={1.0}
       />
