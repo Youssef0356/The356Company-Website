@@ -7,73 +7,92 @@ export const CameraRig: FC = () => {
   const { camera, pointer } = useThree();
   const scrollProgress = useExperienceStore((s) => s.scrollProgress);
 
-  const targetCamPos = useRef(new THREE.Vector3(0, 0, 7));
+  const targetCamPos = useRef(new THREE.Vector3(0, 0, 7.8));
   const targetLookAt = useRef(new THREE.Vector3(0, 0, 0));
+  const currentLookAt = useRef(new THREE.Vector3(0, 0, 0));
 
-  useFrame((_, delta) => {
-    const p = scrollProgress;
+  useFrame((state, delta) => {
+    const time = state.clock.getElapsedTime();
+    const p = Math.min(1.0, Math.max(0.0, scrollProgress));
 
-    // Interpolate camera path based on master scroll timeline ranges
-    if (p < 0.15) {
-      // Scene 01: Genesis (0.0 to 0.15)
-      const t = p / 0.15;
-      targetCamPos.current.set(
-        THREE.MathUtils.lerp(0, 0, t),
-        THREE.MathUtils.lerp(0, 0, t),
-        THREE.MathUtils.lerp(7, 3.5, t)
-      );
-    } else if (p < 0.35) {
-      // Scene 02: AR Explorer (0.15 to 0.35)
-      const t = (p - 0.15) / 0.20;
-      targetCamPos.current.set(
-        THREE.MathUtils.lerp(2.5, 0, t),
-        THREE.MathUtils.lerp(1.5, 0, t),
-        THREE.MathUtils.lerp(5.5, 4.0, t)
-      );
-    } else if (p < 0.55) {
-      // Scene 03: Pagelit (0.35 to 0.55)
-      const t = (p - 0.35) / 0.20;
-      targetCamPos.current.set(
-        THREE.MathUtils.lerp(-2.0, 0, t),
-        THREE.MathUtils.lerp(1.0, 0, t),
-        THREE.MathUtils.lerp(5.0, 4.2, t)
-      );
-    } else if (p < 0.75) {
-      // Scene 04: The System (0.55 to 0.75)
-      const t = (p - 0.55) / 0.20;
-      targetCamPos.current.set(
-        THREE.MathUtils.lerp(0, 0, t),
-        THREE.MathUtils.lerp(2.8, 1.8, t),
-        THREE.MathUtils.lerp(4.5, 4.0, t)
-      );
-    } else if (p < 0.90) {
-      // Scene 05: Battle Cows (0.75 to 0.90)
-      const t = (p - 0.75) / 0.15;
-      targetCamPos.current.set(
-        THREE.MathUtils.lerp(3.8, 2.5, t),
-        THREE.MathUtils.lerp(4.2, 3.2, t),
-        THREE.MathUtils.lerp(5.2, 4.2, t)
-      );
-    } else {
-      // Scene 06: Ecosystem Constellation (0.90 to 1.0)
-      const t = (p - 0.90) / 0.10;
+    // Left Focal Element World Anchor
+    const focalElementPos = new THREE.Vector3(-3.1, 0.1, 0.4);
+
+    // ==========================================
+    // 5-PHASE BERSUS CAMERA CHOREOGRAPHY
+    // ==========================================
+    if (p < 0.35) {
+      // PHASE 0 & 1: Wide Monumental View (Silhouette -> Color Awakening)
+      const t = p / 0.35;
+      const easedT = THREE.MathUtils.smoothstep(t, 0.0, 1.0);
+
       targetCamPos.current.set(
         0,
-        THREE.MathUtils.lerp(0, 0.5, t),
-        THREE.MathUtils.lerp(6.0, 8.5, t)
+        THREE.MathUtils.lerp(0, 0.15, easedT),
+        THREE.MathUtils.lerp(7.8, 6.2, easedT)
       );
+      targetLookAt.current.set(0, 0, 0);
+    } else if (p < 0.60) {
+      // PHASE 2: Cinematic Dolly & Pan toward Left Satellite / Laptop
+      const t = (p - 0.35) / 0.25;
+      const easedT = THREE.MathUtils.smoothstep(t, 0.0, 1.0);
+
+      targetCamPos.current.set(
+        THREE.MathUtils.lerp(0, -2.3, easedT),
+        THREE.MathUtils.lerp(0.15, 0.45, easedT),
+        THREE.MathUtils.lerp(6.2, 3.0, easedT)
+      );
+
+      targetLookAt.current.set(
+        THREE.MathUtils.lerp(0, focalElementPos.x, easedT),
+        THREE.MathUtils.lerp(0, focalElementPos.y, easedT),
+        THREE.MathUtils.lerp(0, focalElementPos.z, easedT)
+      );
+    } else if (p < 0.85) {
+      // PHASE 3: Tight Focus, Animation & High-Frequency Camera Shake on Disassembly
+      const t = (p - 0.60) / 0.25;
+      const shakeIntensity = Math.min(0.05, Math.pow(t, 1.5) * 0.045);
+
+      // High frequency shake noise
+      const shakeX = Math.sin(time * 48) * shakeIntensity + Math.cos(time * 33) * shakeIntensity * 0.5;
+      const shakeY = Math.cos(time * 52) * shakeIntensity + Math.sin(time * 29) * shakeIntensity * 0.5;
+
+      targetCamPos.current.set(
+        THREE.MathUtils.lerp(-2.3, -2.4, t) + shakeX,
+        THREE.MathUtils.lerp(0.45, 0.35, t) + shakeY,
+        THREE.MathUtils.lerp(3.0, 2.5, t)
+      );
+
+      targetLookAt.current.copy(focalElementPos);
+    } else {
+      // PHASE 4 & 5: Fly-through & Complete Blackout Intro
+      targetCamPos.current.set(-2.4, 0.35, 2.3);
+      targetLookAt.current.copy(focalElementPos);
     }
 
-    // Gentle cursor parallax dampening
-    const parallaxX = pointer.x * 0.4;
-    const parallaxY = pointer.y * 0.25;
+    // Interactive pointer parallax
+    const parallaxX = pointer.x * (p < 0.35 ? 0.35 : 0.12);
+    const parallaxY = pointer.y * (p < 0.35 ? 0.22 : 0.08);
 
-    const lerpSpeed = Math.min(1, delta * 3.5);
-    camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetCamPos.current.x + parallaxX, lerpSpeed);
-    camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCamPos.current.y + parallaxY, lerpSpeed);
-    camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCamPos.current.z, lerpSpeed);
+    const lerpSpeed = Math.min(1.0, delta * 3.8);
+    camera.position.x = THREE.MathUtils.lerp(
+      camera.position.x,
+      targetCamPos.current.x + parallaxX,
+      lerpSpeed
+    );
+    camera.position.y = THREE.MathUtils.lerp(
+      camera.position.y,
+      targetCamPos.current.y + parallaxY,
+      lerpSpeed
+    );
+    camera.position.z = THREE.MathUtils.lerp(
+      camera.position.z,
+      targetCamPos.current.z,
+      lerpSpeed
+    );
 
-    camera.lookAt(targetLookAt.current);
+    currentLookAt.current.lerp(targetLookAt.current, lerpSpeed);
+    camera.lookAt(currentLookAt.current);
   });
 
   return null;

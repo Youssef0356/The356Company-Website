@@ -32,3 +32,14 @@ lerna-debug.log*
 *.log
 
 *.tsbuildinfo
+
+# Blender Backups & Temp Renders
+*.blend1
+*.blend.bak
+Untitled*
+test_*.png
+studio_preview*.png
+compare_logos.png
+studio_logo_*.png
+*.py
+

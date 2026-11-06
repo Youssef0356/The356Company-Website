@@ -2,6 +2,8 @@ import { FC, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing';
 import { AtmosphereBackground } from './AtmosphereBackground';
+import { StudioCore } from './StudioCore';
+import { CameraRig } from './CameraRig';
 
 export const SceneManager: FC = () => {
   return (
@@ -17,16 +19,18 @@ export const SceneManager: FC = () => {
         camera={{ position: [0, 0, 7], fov: 45 }}
       >
         <Suspense fallback={null}>
+          <CameraRig />
           <AtmosphereBackground />
+          <StudioCore />
 
           <EffectComposer multisampling={0}>
             <Bloom
-              luminanceThreshold={0.45}
-              luminanceSmoothing={0.3}
-              intensity={0.7}
+              luminanceThreshold={0.78}
+              luminanceSmoothing={0.2}
+              intensity={0.65}
               mipmapBlur
             />
-            <Vignette eskil={false} offset={0.2} darkness={0.85} />
+            <Vignette eskil={false} offset={0.25} darkness={0.9} />
           </EffectComposer>
         </Suspense>
       </Canvas>

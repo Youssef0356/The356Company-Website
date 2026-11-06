@@ -45,13 +45,27 @@ export const AtmosphereBackground: FC = () => {
   useFrame((state, delta) => {
     const target = ATMOSPHERE_PALETTES[activeSceneIndex] || ATMOSPHERE_PALETTES[0];
     const lerpSpeed = Math.min(1, delta * 2.5);
+    const p = Math.min(1.0, Math.max(0.0, scrollProgress));
 
-    // Smoothly interpolate ambient & spot light colors
+    // Dynamic light awakening: Silhouette at p=0, full lighting at p>=0.28, blackout at p>=0.88
+    let lightMultiplier = 1.0;
+    if (p < 0.28) {
+      // Silhouette fade-in
+      lightMultiplier = THREE.MathUtils.lerp(0.04, 1.0, Math.min(1.0, p / 0.25));
+    } else if (p > 0.88) {
+      // Blackout fade-out
+      lightMultiplier = THREE.MathUtils.lerp(1.0, 0.0, Math.min(1.0, (p - 0.88) / 0.08));
+    }
+
+    // Smoothly interpolate ambient & spot light colors & intensities
     if (ambientLightRef.current) {
       ambientLightRef.current.color.lerp(new THREE.Color(target.top), lerpSpeed);
+      ambientLightRef.current.intensity = 1.4 * lightMultiplier;
     }
     if (spotLightRef.current) {
       spotLightRef.current.color.lerp(new THREE.Color(target.accent), lerpSpeed);
+      spotLightRef.current.intensity = 3.8 * lightMultiplier;
+
       // Subtle mouse follow on spotlight
       spotLightRef.current.position.x = THREE.MathUtils.lerp(
         spotLightRef.current.position.x,
@@ -73,7 +87,7 @@ export const AtmosphereBackground: FC = () => {
 
       for (let i = 0; i < particleCount; i++) {
         // Slow float up
-        arr[i * 3 + 1] = originalY[i] + Math.sin(time * 0.4 + i) * 0.4 - scrollProgress * 5;
+        arr[i * 3 + 1] = originalY[i] + Math.sin(time * 0.4 + i) * 0.4 - p * 5;
         // Wrap around vertically
         if (arr[i * 3 + 1] < -12) {
           arr[i * 3 + 1] += 24;
@@ -85,13 +99,13 @@ export const AtmosphereBackground: FC = () => {
 
   return (
     <>
-      <ambientLight ref={ambientLightRef} intensity={1.8} />
+      <ambientLight ref={ambientLightRef} intensity={0.05} />
       <spotLight
         ref={spotLightRef}
         position={[0, 4, 3]}
         angle={0.65}
         penumbra={0.9}
-        intensity={4.5}
+        intensity={0.1}
       />
 
       {/* Floating Stardust Particles */}
@@ -106,7 +120,7 @@ export const AtmosphereBackground: FC = () => {
           size={0.06}
           color="#DCB0FF"
           transparent
-          opacity={0.5}
+          opacity={0.4}
           blending={THREE.AdditiveBlending}
         />
       </points>
