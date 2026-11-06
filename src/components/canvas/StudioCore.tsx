@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { useExperienceStore } from '@/stores/useExperienceStore';
-import { FractureCluster } from './FractureCluster';
+import { GaussianSplatObject } from './GaussianSplatObject';
 
 // Preload the Studio Core 3D model
 useGLTF.preload('/models/studio_core.glb');
@@ -14,7 +14,6 @@ export const StudioCore: FC = () => {
   const initialMedallionQuat = useRef<THREE.Quaternion | null>(null);
   const ringsRef = useRef<THREE.Object3D | null>(null);
   const floatingGroupRef = useRef<THREE.Object3D | null>(null);
-  const laptopRef = useRef<THREE.Object3D | null>(null);
   const phoneRef = useRef<THREE.Object3D | null>(null);
 
   // Dynamic light refs for silhouette -> lit awakening
@@ -47,7 +46,8 @@ export const StudioCore: FC = () => {
         child.name.includes('Laptop') ||
         child.name === 'Sketchfab_model.001'
       ) {
-        laptopRef.current = child;
+        // Hide original static laptop mesh so authentic Gaussian Splats take its place
+        child.visible = false;
       } else if (
         child.name.includes('Phone') ||
         child.name === 'Sketchfab_model'
@@ -79,13 +79,10 @@ export const StudioCore: FC = () => {
   useFrame((state, delta) => {
     const time = state.clock.getElapsedTime();
     const pointer = state.pointer;
-    // Normalized global scroll progress 0.0 to 1.0
     const p = Math.min(1.0, Math.max(0.0, scrollProgress));
 
     // ==========================================
     // 1. CHOREOGRAPHED STUDIO LIGHTING (SILHOUETTE -> LIT AWAKENING)
-    // At p = 0: Key lights are near-zero (silhouette against space)
-    // As p goes 0.05 -> 0.32: Studio illumination powers up to full PBR
     // ==========================================
     const lightT = Math.min(1.0, Math.max(0.0, (p - 0.03) / 0.28));
     const easedLight = THREE.MathUtils.smoothstep(lightT, 0.0, 1.0);
@@ -127,23 +124,18 @@ export const StudioCore: FC = () => {
 
     // ==========================================
     // 3. 180° MEDALLION COIN FLIP MECHANIC
-    // At p = 0: Flipped backwards 180° (back plate faces viewer)
-    // As p goes 0.05 -> 0.35: Flips smoothly to 0.0 (front logo faces viewer)
     // ==========================================
     if (medallionRef.current && initialMedallionQuat.current) {
       const flipProgress = Math.min(1.0, Math.max(0.0, (p - 0.04) / 0.32));
       const easedFlip = THREE.MathUtils.smoothstep(flipProgress, 0.0, 1.0);
       const flipAngle = (1.0 - easedFlip) * Math.PI;
 
-      // Reset to original orientation and rotate around local Y axis
       medallionRef.current.quaternion.copy(initialMedallionQuat.current);
       medallionRef.current.rotateY(flipAngle);
     }
 
     // ==========================================
     // 4. FLOATING SATELLITES & BADGES APPEARANCE
-    // At p = 0: Scale = 0 (hidden)
-    // As p goes 0.08 -> 0.35: Scales up to 1.0 and flies inward into orbit
     // ==========================================
     if (floatingGroupRef.current) {
       const appearProgress = Math.min(1.0, Math.max(0.0, (p - 0.06) / 0.28));
@@ -162,38 +154,45 @@ export const StudioCore: FC = () => {
     }
 
     // ==========================================
-    // 6. FOCAL ANIMATION FOR LAPTOP & MOBILE PHONE
+    // 6. PHONE ROTATION
     // ==========================================
-    if (laptopRef.current) {
-      // Idle floating
-      const idleY = Math.sin(time * 0.9 + 1.0) * 0.08;
-      
-      // When camera locks on during Phase 3 (p: 0.55 -> 0.85):
-      // Element responds with mechanical floating agitation
-      if (p >= 0.55 && p <= 0.88) {
-        const agitateT = (p - 0.55) / 0.30;
-        laptopRef.current.position.y = 0.2 + idleY + agitateT * 0.35;
-        laptopRef.current.rotation.y = THREE.MathUtils.lerp(0, Math.PI * 0.45, agitateT);
-        laptopRef.current.rotation.z = Math.sin(time * 25) * agitateT * 0.05;
-      } else {
-        laptopRef.current.position.y = 0.2 + idleY;
-        laptopRef.current.rotation.y += delta * 0.08;
-        laptopRef.current.rotation.z = 0;
-      }
-    }
-
     if (phoneRef.current) {
       phoneRef.current.position.y = -0.2 + Math.cos(time * 0.85 + 2.0) * 0.08;
       phoneRef.current.rotation.y -= delta * 0.1;
     }
   });
 
+  // Calculate Gaussian Splat Gathering & Dispersion Progress
+  // p < 0.15: Laptop hidden / dispersed cloud (progress = 1.0)
+  // p in [0.15, 0.45]: Camera sweeps to laptop -> Splats gather together (1.0 -> 0.0)
+  // p in [0.45, 0.65]: Laptop is fully assembled, solid, and pristine (progress = 0.0)
+  // p in [0.65, 0.85]: Splats gently disperse outward again (0.0 -> 1.0)
+  const p = Math.min(1.0, Math.max(0.0, scrollProgress));
+  let splatProgress = 1.0;
+  if (p < 0.15) {
+    splatProgress = 1.0;
+  } else if (p <= 0.45) {
+    splatProgress = 1.0 - (p - 0.15) / 0.30;
+  } else if (p <= 0.65) {
+    splatProgress = 0.0;
+  } else if (p <= 0.85) {
+    splatProgress = (p - 0.65) / 0.20;
+  } else {
+    splatProgress = 1.0;
+  }
+
   return (
     <group ref={groupRef} position={[0, 0, 0]} scale={1.05}>
       <primitive object={clonedScene} />
 
-      {/* Dynamic Voronoi Fracture Cluster for Phase 3 Disassembly & Fly-Through Wipe */}
-      <FractureCluster focalPoint={[-3.1, 0.1, 0.4]} />
+      {/* 3D GAUSSIAN SPLATTING LAPTOP (70,000 True Gaussian Ellipsoids) */}
+      <GaussianSplatObject
+        splatUrl="/models/laptop_gaussian.ply"
+        progress={splatProgress}
+        scatterRadius={3.6}
+        position={[0, 0, 0]}
+        scale={1.0}
+      />
 
       {/* Chiaroscuro Studio Lighting with Dynamic Silhouette Transition */}
       <spotLight

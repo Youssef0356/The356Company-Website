@@ -1,51 +1,39 @@
 # CHECKPOINT — PROJECT STATE & HANDOVER SPECIFICATION
 
-> **Current Phase:** 5-Phase Bersus-Inspired Scroll Choreography & Studio Manifesto Intro — **COMPLETED & VERIFIED LIVE**  
-> **Status:** Live Dev Server Active (`http://localhost:3001/`) | Production Build Succeeded in 6.18s  
+> **Current Phase:** Authentic 3D Gaussian Splatting Integration & Scroll-Driven Gathering — **COMPLETED & VERIFIED LIVE**  
+> **Status:** Live Dev Server Active (`http://localhost:3001/`) | Production Build Succeeded in 5.58s  
 > **Last Updated:** November 6, 2026
 
 ---
 
 ## 1. What Was Implemented
 
-In direct accordance with the Bersus reference screenshots (`media_1793980576578_421c29ae.png` through `media_1793980685605_43b9a67e.jpg`) and explicit user choreography:
+1. **GLB-to-Gaussian Splat Surface Pipeline (`convert_laptop_to_splat.py`):**
+   - Sampled 70,000 points uniformly across the `Laptop_Laptop1_0` triangle surface using area-weighted Poisson distribution.
+   - Baked diffuse RGB textures (`Image_0.001`, 2048x2048) into degree-0 Spherical Harmonics ($f_{dc}$).
+   - Formulated anisotropic 3D covariance ($s_x, s_y$ tangent surface area, $s_z$ thin thickness) and orientation quaternions from surface normals.
+   - Exported standard binary Little-Endian 3D Gaussian Splat format to `public/models/laptop_gaussian.ply` (4.76MB, 70,000 splats).
 
-1. **Phase 0 (Scroll 0.00 – 0.15) — Silhouette Wide View:**
-   - Elements start rendered in mysterious black silhouette against the deep space backdrop.
-   - Monumental architectural display typography (`THE 356`) sits in deep spatial parallax behind the 3D core.
-   - Clean, uncluttered UI: No top navbars, no middle badges, only minimal corner telemetry (`THE356COMPANY / STUDIO EXHIBITION`) and `[scroll down]`.
+2. **High-Performance Binary PLY Loader (`src/utils/splatLoader.ts`):**
+   - Direct typed array parser extracting positions, scales, rotation quaternions, colors, and organic scatter trajectories in under 10ms.
 
-2. **Phase 1 (Scroll 0.15 – 0.35) — Color Awakening & 180° Coin Flip:**
-   - Chiaroscuro key, fill, and rim lights smoothly ramp up from silhouette ($0.04$) to full studio PBR illumination ($2.8$).
-   - The central medallion coin flips $180^\circ$ from its backplate to face the viewer, revealing the glowing The356Company monogram.
-   - Clean editorial subtitle (`Software. Games. Spatial Dimensions.`) fades in right above the medallion.
-   - Floating satellites and store badges scale up and fly inward into orbit.
+3. **Authentic 3D-to-2D Projected Gaussian Splatting Shader (`src/components/canvas/GaussianSplatObject.tsx`):**
+   - Implements INRIA's projective covariance math on the GPU:
+     $$\Sigma_{2D} = J W \Sigma_{3D} W^T J^T$$
+   - Computes screen-space eigenvalues/eigenvectors for true anisotropic elliptical footprint.
+   - Fragment shader evaluates $G(x, y) = \exp(-0.5 \cdot \mathbf{x}^T \Sigma_{2D}^{-1} \mathbf{x})$.
+   - Supports GPU dispersion via uniform `uProgress` with staggered ripple phase.
 
-3. **Phase 2 (Scroll 0.35 – 0.60) — Cinematic Dolly & Pan to Left Satellite:**
-   - `CameraRig` executes a sweeping camera move toward the left focal asset (Laptop & Satellite at `[-3.1, 0.1, 0.4]`).
-   - Camera moves from wide `[0, 0.15, 6.2]` into close-up `[-2.3, 0.45, 3.0]`, smoothly tracking the focal element.
-
-4. **Phase 3 (Scroll 0.60 – 0.85) — Animated Agitation, Fracture & Camera Shake:**
-   - The focal element responds with high-tempo spatial agitation.
-   - Dynamic Voronoi `FractureCluster` fractures into 22 procedural obsidian shards with violet emissive glowing fractures exploding outward.
-   - High-frequency camera jitter noise simulates physical shockwave keyed to scroll progress and velocity.
-
-5. **Phase 4 (Scroll 0.82 – 0.90) — Shard Fly-Through & Blackout:**
-   - The lead wipe shard detaches from the exploding cluster and flies straight toward the camera lens along the sightline.
-   - Scaled up to $32\times$, it completely covers the camera near plane, creating an authentic physical 3D blackout wipe.
-
-6. **Phase 5 (Scroll 0.88 – 1.00) — Studio Introduction Overlay (`StudioIntroOverlay`):**
-   - Pure black background takes over as the lens is occluded.
-   - Architectural studio manifesto fades in:
-     - Badge: `STUDIO MANIFESTO // 01`
-     - Headline: `We Craft Experiences With Uncompromising Ambition.`
-     - Studio ethos paragraph.
-     - 4-column pillar showcase for the 4 official published apps: **Pagelit**, **AR Explorer**, **The System**, **Battle Cows**.
+4. **Scroll-Driven Gaussian Gathering & Dispersion (`src/components/canvas/StudioCore.tsx`):**
+   - **Logo view ($p < 0.15$):** Laptop is not shown (completely dispersed cloud / hidden).
+   - **Camera pan ($p: 0.15 \rightarrow 0.45$):** Splats fly inward from zero-gravity space and gather together into the solid, recognizable laptop.
+   - **Close inspection ($p: 0.45 \rightarrow 0.65$):** Laptop is 100% assembled, sharp, and solid.
+   - **Forward scroll ($p: 0.65 \rightarrow 0.85$):** Splats separate again and disperse outward.
+   - **Fully reversible:** Scrolling back up smoothly un-gathers and re-scatters the object.
 
 ---
 
 ## 2. Technical Verifications
 
-- **Blender 5.2 Headless Pipeline:** `Studio.blend` preserved, laptop and phone positioned cleanly at `X = -3.2` and `X = +3.2`, re-exported to `public/models/studio_core.glb` with zero conflict with GUI sessions.
-- **TypeScript:** Strict typecheck passed cleanly with zero warnings (`npm run build` completed in **6.18s**).
-- **Vite Dev Server:** Active and responding with HTTP 200 at `http://localhost:3001/`.
+- **Production Build:** `npm run build` succeeds in **5.58s** with zero errors or warnings.
+- **Dev Server:** Active and responsive at `http://localhost:3001/` (HTTP 200 OK).
