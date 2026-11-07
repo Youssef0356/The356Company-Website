@@ -24,7 +24,15 @@ export const useExperienceStore = create<ExperienceState>((set) => ({
   setActiveSceneIndex: (index) => set({ activeSceneIndex: index }),
 
   scrollProgress: 0,
-  setScrollProgress: (progress) => set({ scrollProgress: progress }),
+  setScrollProgress: (progress) => {
+    let scene = 0;
+    if (progress < 0.14) scene = 0;
+    else if (progress < 0.52) scene = 1;
+    else if (progress < 0.64) scene = 2;
+    else if (progress < 0.88) scene = 3;
+    else scene = 5;
+    set({ scrollProgress: progress, activeSceneIndex: scene });
+  },
 
   cursorVariant: 'default',
   setCursorVariant: (variant) => set({ cursorVariant: variant }),

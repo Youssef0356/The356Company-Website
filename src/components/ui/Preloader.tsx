@@ -55,6 +55,7 @@ export const Preloader: FC<PreloaderProps> = ({ onComplete }) => {
 
   return (
     <div
+      id="preloader"
       style={{
         zIndex: 99999,
       }}

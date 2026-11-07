@@ -36,10 +36,20 @@ lerna-debug.log*
 # Blender Backups & Temp Renders
 *.blend1
 *.blend.bak
+*.blend@*
+Studio_Rigged.blend
 Untitled*
 test_*.png
 studio_preview*.png
 compare_logos.png
 studio_logo_*.png
 *.py
+
+# Test & Debug Artifacts
+/*.cjs
+/*.png
+/scratch/
+/test-results/
+/test-shots/
+
 

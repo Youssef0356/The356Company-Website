@@ -20,6 +20,11 @@ export const useLenisScroll = () => {
       touchMultiplier: 1.5,
     });
 
+    // Expose lenis for programmatic control & testing
+    if (typeof window !== 'undefined') {
+      (window as any).lenis = lenis;
+    }
+
     // 1. Hook Lenis directly into our global store on every single scroll frame
     lenis.on('scroll', (e: { progress: number }) => {
       ScrollTrigger.update();

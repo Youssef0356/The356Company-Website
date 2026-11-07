@@ -125,3 +125,15 @@
 - **Implementation:** Recovered the prior App, AR Explorer, Battle Cows, navbar, scroll hooks, stylesheet, and Three.js chunking from the local session snapshot. Pagelit and The System source were clipped in that snapshot, so those two sections were reconstructed from surviving markup and existing public assets.
 - **Rationale:** The earlier product showcase is the user's preferred visual baseline. Motion and creative polish should build on that baseline.
 - **Status:** Implemented; browser review remains.
+
+---
+
+## Decision 10: Physical GLB Lid Screen Rigging & React 19 StrictMode Ref Binding
+
+- **Date:** November 7, 2026
+- **Decision:** Rig the laptop display directly to the embedded `Laptop_Laptop1_0001_1` submesh inside `Laptop_Lid` (rotating via `Laptop_Hinge`), and bind all cloned scene refs inside `useLayoutEffect` rather than `useMemo`.
+- **Rationale:** 
+  1. Assigning `useRef` targets inside `useMemo(() => scene.clone(true))` caused React 19 `<StrictMode>`'s double-invocation to overwrite `laptopHingeRef.current` with an orphaned clone not mounted in the WebGL scene, leaving the rendered laptop frozen closed.
+  2. Binding refs inside `useLayoutEffect(() => { ... }, [clonedScene])` guarantees that `laptopHingeRef`, `laptopLidRef`, `laptopScreenMeshRef`, `medallionRef`, and `ringsRef` point to the exact committed Three.js objects in the live scene graph.
+  3. Mapping corrected 4-vertex UVs and `polygonOffset` (`-1, -1`) directly onto `Laptop_Laptop1_0001_1` inside `Laptop_Lid` ensures the lid and screen swing open as a single physical rigid body (`rotation.x: -1.894 rad -> 0.000 rad`) without any decoupled floating 2D planes.
+- **Status:** **APPROVED & IMPLEMENTED**.

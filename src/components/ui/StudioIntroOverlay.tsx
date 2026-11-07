@@ -4,11 +4,11 @@ import { useExperienceStore } from '@/stores/useExperienceStore';
 export const StudioIntroOverlay: FC = () => {
   const scrollProgress = useExperienceStore((s) => s.scrollProgress);
 
-  // Activates once the physical shard wipe covers the screen (p >= 0.86)
-  const isVisible = scrollProgress >= 0.86;
+  // Activates once the physical shard wipe covers the screen (p >= 0.94)
+  const isVisible = scrollProgress >= 0.94;
 
-  // Normalized progress within the introduction phase (0.86 to 1.0)
-  const t = Math.min(1.0, Math.max(0.0, (scrollProgress - 0.86) / 0.14));
+  // Normalized progress within the introduction phase (0.94 to 1.0)
+  const t = Math.min(1.0, Math.max(0.0, (scrollProgress - 0.94) / 0.06));
 
   if (!isVisible && t <= 0) return null;
 
